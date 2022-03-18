@@ -4,12 +4,10 @@ using System.Text;
 
 namespace JHW.VersionControl
 {
-    public interface IDocument : IEnumerable<string>
+    public interface IDocument<T> : IEnumerable<T>
     {
-        /*int LineCount();
-        string Line(int lineNumber);*/
-        void Apply(ChangeSet changeSet);
+        void Apply(ChangeSet<T> changeSet);
         void Save(string filename);
-        ChangeSet ToChangeSet();
+        ChangeSet<T> ToChangeSet();
     }
 }

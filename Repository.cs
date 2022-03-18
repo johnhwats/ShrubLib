@@ -3,78 +3,140 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
-//using System.Runtime.Serialization.Formatters;
 using System.Runtime.Serialization;
 
 namespace JHW.VersionControl
 {
-    public static class Repository
+    public static class Repository<T>
     {
         public const string RootBranchName = "v.1";
-        
-        public static readonly Dictionary<string, Branch> BranchMap = 
-            new Dictionary<string, Branch>();
+        private const string _repoSubDirectory = ".shrub";
+        private const string _branchSubDirectory = "branch";
+        private const string _binarySourceSubDirectory = "bin";
 
-        //private static int _file
+        private static readonly Dictionary<string, Branch<T>> _branchDict = 
+            new Dictionary<string, Branch<T>>();
+
         private static string _workingDirectory;
-        
+        private static int _binaryFileNum = 1;
 
-        private static string RepoDirectory
+        #region private methods
+        private static string RepoPath
         {
-            get => Path.Combine(_workingDirectory, ".shrub");
+            get => Path.Combine(_workingDirectory, _repoSubDirectory);
         }
 
-        private static void Serialize(string branchName, Branch branch)
+        private static string RepoBinPath
+        {
+            get => Path.Combine(RepoPath, _binarySourceSubDirectory);
+        }
+
+        private static string RepoBranchPath
+        {
+            get => Path.Combine(RepoPath, _branchSubDirectory);
+        }
+        
+        private static void Serialize(string branchName, Branch<T> branch)
         {
             IFormatter formatter = new BinaryFormatter();
-            string filename = Path.Combine(RepoDirectory, branchName + ".bin");
+            string filename = Path.Combine(RepoBranchPath, branchName + ".bin");
             Stream stream = new FileStream(filename, FileMode.Create, FileAccess.Write);
 
             formatter.Serialize(stream, branch);
             stream.Close();
         }
 
-        private static Branch Deserialize(string filename)
+        private static Branch<T> Deserialize(string filename)
         {
             IFormatter formatter = new BinaryFormatter();
             using Stream stream = new FileStream(filename, FileMode.Open);
-            return (Branch)formatter.Deserialize(stream);
+            return (Branch<T>)formatter.Deserialize(stream);
         }
+
+        private static Stack<ChangeSet<T>> StackOfChangeSets(string branchName, string filename)
+        {
+            Stack<ChangeSet<T>> result = new Stack<ChangeSet<T>>();
+
+            while (_branchDict.ContainsKey(branchName))
+            {
+                result.Push(_branchDict[branchName].TextChangeSet(filename));
+                branchName = ParentName(branchName);
+            }
+
+            return result;
+        }
+        #endregion
+
+        public static Branch<T> GetBranch(string name)
+        {
+            return _branchDict[name];
+        }
+
+        public static bool ExistsRepoSubDirectory(string workingDirectory)
+        {
+            return Directory.Exists(Path.Combine(workingDirectory, _repoSubDirectory));
+        }
+
 
         public static string NextAvailableChildName(string name)
         {
             int childNum = 1;
             string childName = Utility.ChildName(name, childNum);
-            while (BranchMap.ContainsKey(childName))
+            while (_branchDict.ContainsKey(childName))
             {
                 childName = Utility.ChildName(name, ++childNum);
             }
             return childName;
         }
 
-        private static Stack<ChangeSet> ChangeStack(string branchName, string filename)
+        public static void PlantShrub(string workingDirectory)
         {
-            Stack<ChangeSet> result = new Stack<ChangeSet>();
+            _workingDirectory = workingDirectory;
+            //Directory.CreateDirectory(RepoPath);
+            Directory.CreateDirectory(RepoBranchPath);
+            Directory.CreateDirectory(RepoBinPath);
 
-            while (BranchMap.ContainsKey(branchName) &&
-                BranchMap[branchName].TextFileChangeSet.TryGetValue(filename, out ChangeSet set))
+            Dictionary<string, string> binarySources = new Dictionary<string, string>();
+            Dictionary<string, ChangeSet<T>> textChangeSets = new Dictionary<string, ChangeSet<T>>();
+
+            foreach (var filename in Utility.GetFilesRecursively(_workingDirectory))
             {
-                result.Push(set);
-                branchName = ParentName(branchName);
+                // get relative Filename
+                if (Utility.IsBinary(filename))
+                {
+                    /*string sourceFilename = Path.Combine(WorkingDirectory,
+                            ".shrub", Path.GetRelativePath(WorkingDirectory, filename));*/
+
+                    string sourceFilename = Path.Combine(RepoBinPath, _binaryFileNum + ".bin");
+                    File.Copy(filename, sourceFilename);
+                     
+                    binarySources.Add(filename, sourceFilename);
+                    _binaryFileNum++;
+                }
+                else
+                {
+                    IDocument<T> tdoc = (IDocument<T>)new LinkedCharsDoc(filename);
+                    
+                    textChangeSets.Add(filename, tdoc.ToChangeSet());
+                }
             }
 
-            return result;
+            Branch<T> root = new Branch<T>(binarySources, textChangeSets, "trunk");
+
+            _branchDict.Add(RootBranchName, root);
+            Serialize(RootBranchName, root);
+
         }
 
-        public static void Load(string workingDirectory)
+
+        public static void Open(string workingDirectory)
         {
             _workingDirectory = workingDirectory;
 
-            foreach (string filename in Directory.GetFiles(RepoDirectory, "*.br"))
+            foreach (string filename in Directory.GetFiles(RepoPath, "*.br"))
             {
                 string filenameOnly = Path.GetFileName(filename);
-                BranchMap.Add(
-                    filenameOnly.Substring(0, filename.Length - 3),
+                _branchDict.Add(filenameOnly.Substring(0, filename.Length - 3),
                     Deserialize(filename));
             }
 
@@ -110,20 +172,20 @@ namespace JHW.VersionControl
         {
             Directory.Delete(_workingDirectory, true);
             
-            Branch branch = BranchMap[branchName];
-            foreach (string filename in branch.TextFileChangeSet.Keys)
+            Branch<T> branch = _branchDict[branchName];
+            foreach (string filename in branch.TextFiles)
             {
-                IDocument doc = new TextDoc();
-                var stack = ChangeStack(branchName, filename);
+                IDocument<T> doc = (IDocument<T>) new LinkedCharsDoc();
+                var stack = StackOfChangeSets(branchName, filename);
                 while (stack.Count > 0)
                 {
                     doc.Apply(stack.Pop());
                 }
                 doc.Save(filename);
             }
-            foreach (string filename in branch.BinaryFileSource.Keys)
+            foreach (string filename in branch.BinaryFiles)
             {
-                File.Copy(branch.BinaryFileSource[filename], filename);
+                File.Copy(branch.BinarySource(filename), filename);
             }
         }
 
@@ -134,7 +196,7 @@ namespace JHW.VersionControl
 
             int i = 1;
             string childName = Utility.ChildName(branchName, i);
-            while (BranchMap.ContainsKey(childName))
+            while (_branchDict.ContainsKey(childName))
             {
                 var stack = PreOrderTraversal(childName);
                 while (stack.Count > 0)
@@ -150,62 +212,37 @@ namespace JHW.VersionControl
         //todo public static void Grow() {}
         public static void Grow(string parentName, string description)
         {
-            Branch branch = new Branch(description);
+            Dictionary<string, string> binarySources = new Dictionary<string, string>();
+            Dictionary<string, ChangeSet<T>> textChangeSets = new Dictionary<string, ChangeSet<T>>();
 
             //foreach file in the working directory
             //if file is binary or not
             foreach(var filename in Utility.GetFilesRecursively(_workingDirectory))
             {
-                if (Utility.IsText(filename))
+                if (Utility.IsBinary(filename))
+                {
+                    
+                }
+                else
                 {
                     //check if the parent has a changeset
-                    if (BranchMap[parentName].TextFileChangeSet.ContainsKey(filename))
+                    if (_branchDict[parentName].HasTextChangeSet(filename))
                     {
 
                     }
                     else
                     {
-                        IDocument tdoc = new TextDoc(filename);
-                        branch.TextFileChangeSet.Add(filename, tdoc.ToChangeSet());
+                        IDocument<T> tdoc = (IDocument<T>) new LinkedCharsDoc(filename);
+                        textChangeSets.Add(filename, tdoc.ToChangeSet());
                     }
                 }
-                else
-                {
-
-                }
             }
+
+            Branch<T> branch = new Branch<T>(binarySources, textChangeSets, description);
         }
+
         
-        public static void Plant(string workingDirectory)
-        {
-            _workingDirectory = workingDirectory;
-            
-            Branch root = new Branch("");
-            foreach (var filename in Utility.GetFilesRecursively(_workingDirectory))
-            {
-                if (Utility.IsText(filename))
-                {
-                    IDocument tdoc = new TextDoc(filename);
-                    root.TextFileChangeSet.Add(filename, tdoc.ToChangeSet());
-                }
-                else
-                {
-                    //todo the source file name
-                    //should maybe saved as "1.bin"
-                    //"2.bin", "3.bin", and so on...
-                    string sourceFilename = Path.Combine(_workingDirectory,
-                            "shrub", Path.GetRelativePath(_workingDirectory, filename));
-                    File.Copy(filename, sourceFilename);
-                    root.BinaryFileSource.Add(filename, sourceFilename);
-                }
-            }
 
-            BranchMap.Add(RootBranchName, root);
-            Serialize(RootBranchName, root);
-        }
-
-
-
-
+        
     }
 }

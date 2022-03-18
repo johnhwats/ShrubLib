@@ -6,22 +6,17 @@ using System.Collections;
 
 namespace JHW.VersionControl
 {
-    public class TextDoc : IDocument
+    internal abstract class LinkedListDoc<T> : IDocument<T>
     {
-        private LinkedList<string> _content = new LinkedList<string>();
+        protected readonly LinkedList<T> _linkedList = new LinkedList<T>();
 
-
-        public TextDoc() { }
-        public TextDoc(string filename) 
+        public LinkedListDoc()
         {
-            Load(filename);
         }
-        
-
-        private static LinkedList<string> Split(string text)
+        /*public LinkedListDoc(string filename) 
         {
-            LinkedList<string> result = new LinkedList<string>();
-
+            string text = File.ReadAllText(filename);
+            
             int lineStart = 0;
             for (int i = 0; i < text.Length; i++)
             {
@@ -29,28 +24,30 @@ namespace JHW.VersionControl
                 {
                     if (i > lineStart)
                     {
-                        result.AddLast(text.Substring(lineStart, i - lineStart));
+                        _linkedList.AddLast(text.Substring(lineStart, i - lineStart));
                     }
                     lineStart = i + 1;
                 }
             }
 
             if (text.Length > lineStart)
-                result.AddLast(text.Substring(lineStart, text.Length - lineStart));
-
-            return result;
-        }
-
-        public ChangeSet ToChangeSet()
-        {
-            List<(int, string)> inserts = new List<(int, string)>(_content.Count);
-            int i = 0;
-            foreach (string line in _content)
             {
-                inserts.Add((i, line));
+                _linkedList.AddLast(text.Substring(lineStart, text.Length - lineStart));
+            }
+        }*/
+
+        public abstract void Save(string filename);
+        
+        public ChangeSet<T> ToChangeSet()
+        {
+            List<(int, T)> inserts = new List<(int, T)>(_linkedList.Count);
+            int i = 0;
+            foreach (T item in _linkedList)
+            {
+                inserts.Add((i, item));
                 i++;
             }
-            return new ChangeSet(new List<int>(), inserts);
+            return new ChangeSet<T>(new List<int>(), inserts);
         }
 
         public void DeleteFilter(List<int> keep)
@@ -58,16 +55,16 @@ namespace JHW.VersionControl
             int excludeIndex = 0;
 
             int nodeIndex = 0;
-            LinkedListNode<string> node = _content.First;
+            LinkedListNode<T> node = _linkedList.First;
 
             while (node != null)
             {
-                LinkedListNode<string> nextNode = node.Next;
+                LinkedListNode<T> nextNode = node.Next;
 
                 if (excludeIndex == keep.Count ||
                     (nodeIndex < keep[excludeIndex]))
                 {
-                    _content.Remove(node);
+                    _linkedList.Remove(node);
                 }
                 else if (nodeIndex == keep[excludeIndex])
                 {
@@ -79,18 +76,18 @@ namespace JHW.VersionControl
             }
         }
 
-        public void Insert(List<(int Index, string Line)> insertions)
+        public void Insert(List<(int Index, T Item)> insertions)
         {
             int insertIndex = 0;
 
             int nodeIndex = 0;
-            LinkedListNode<string> node = _content.First;
+            LinkedListNode<T> node = _linkedList.First;
 
             while (node != null && insertIndex < insertions.Count)
             {
                 if (nodeIndex == insertions[insertIndex].Index)
                 {
-                    _content.AddBefore(node, insertions[insertIndex].Line);
+                    _linkedList.AddBefore(node, insertions[insertIndex].Item);
                     insertIndex++;
                 }
                 else
@@ -102,37 +99,26 @@ namespace JHW.VersionControl
 
             while (insertIndex < insertions.Count && nodeIndex == insertions[insertIndex].Index)
             {
-                _content.AddLast(insertions[insertIndex].Line);
+                _linkedList.AddLast(insertions[insertIndex].Item);
                 insertIndex++;
                 nodeIndex++;
             }
         }
 
-        public void Apply(ChangeSet cs)
+        public void Apply(ChangeSet<T> cs)
         {
-            DeleteFilter(cs.KeepLines);
-            Insert(cs.InsertLines);
+            DeleteFilter(cs.Keep);
+            Insert(cs.Insert);
         }
 
 
-        public IEnumerator<string> GetEnumerator()
+        public IEnumerator<T> GetEnumerator()
         {
-            return _content.GetEnumerator();
+            return _linkedList.GetEnumerator();
         }
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return _content.GetEnumerator();
-        }
-
-        private void Load(string filename)
-        {
-            string text = File.ReadAllText(filename);
-            _content = Split(text);
-        }
-
-        public void Save(string filename)
-        {
-            File.WriteAllLines( filename, _content);
+            return _linkedList.GetEnumerator();
         }
     }
 }

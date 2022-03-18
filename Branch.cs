@@ -6,19 +6,53 @@ using System.IO;
 namespace JHW.VersionControl
 {
     [Serializable]
-    public class Branch
+    public class Branch<T>
     {
-        public readonly Dictionary<string, string> BinaryFileSource = 
+        private readonly Dictionary<string, string> _binarySources = 
             new Dictionary<string, string>();
+        private readonly Dictionary<string, ChangeSet<T>> _textChangeSets = 
+            new Dictionary<string, ChangeSet<T>>();
 
-        public readonly Dictionary<string, ChangeSet> TextFileChangeSet = 
-            new Dictionary<string, ChangeSet>();
+        public string Description { get; set; }
 
-        public string Description;
 
-        public Branch(string description)
+        public IEnumerable<string> BinaryFiles
         {
+            get => _binarySources.Keys;
+        }
+        public IEnumerable<string> TextFiles
+        {
+            get => _textChangeSets.Keys;
+        }
+
+
+        public Branch(Dictionary<string, string> binarySources, 
+            Dictionary<string, ChangeSet<T>> textChangeSets, string description = null)
+        {
+            _binarySources = binarySources;
+            _textChangeSets = textChangeSets;
             Description = description;
         }
+
+        public bool HasBinarySource(string filename)
+        {
+            return _binarySources.ContainsKey(filename);
+        }
+
+        public string BinarySource(string filename)
+        {
+            return _binarySources[filename];
+        }
+
+        public bool HasTextChangeSet(string filename)
+        {
+            return _textChangeSets.ContainsKey(filename);
+        }
+
+        public ChangeSet<T> TextChangeSet(string filename)
+        {
+            return _textChangeSets[filename];
+        }
+
     }
 }

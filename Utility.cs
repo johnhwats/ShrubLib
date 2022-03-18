@@ -5,9 +5,9 @@ using System.IO;
 
 namespace JHW.VersionControl
 {
-    internal static class Utility
+    public static class Utility
     {
-        internal static (string Prefix, char LastToken, int LastNumber) Split(
+        public static (string Prefix, char LastToken, int LastNumber) Split(
             string name)
         {
             for (int i = name.Length - 1; i > -1; i--)
@@ -34,7 +34,7 @@ namespace JHW.VersionControl
             }
         }
 
-        internal static string ChildName(string name, int num)
+        public static string ChildName(string name, int num)
         {
             if (num == 1)
             {
@@ -46,7 +46,7 @@ namespace JHW.VersionControl
             }
         }
 
-        internal static List<string> GetFilesRecursively(string path)
+        public static List<string> GetFilesRecursively(string path)
         {
             List<string> result = new List<string>();
             result.AddRange(Directory.GetFiles(path));
@@ -59,7 +59,7 @@ namespace JHW.VersionControl
         }
 
         // The source code was taken from "bytedev" on Stack Overflow.
-        internal static bool IsBinary(string filePath, int requiredConsecutiveNul = 1)
+        public static bool IsBinary(string filePath, int requiredConsecutiveNul = 1)
         {
             const int charsToCheck = 8000;
             const char nulChar = '\0';
@@ -91,12 +91,12 @@ namespace JHW.VersionControl
         }
 
         //"AGBAT" and "GAB"
-        internal static int[,] LCSTableString(string a, string b)
+        public static int[,] LCSTableString(string a, string b)
         {
             return LCSTable<string, char>(a, b, a.Length, b.Length);
         }
 
-        internal static int[,] LCSTable<S, T>(S a, S b, int x, int y) 
+        public static int[,] LCSTable<S, T>(S a, S b, int x, int y) 
             where S : IEnumerable<T>
             where T : IEquatable<T>
         {

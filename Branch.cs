@@ -15,7 +15,6 @@ namespace JHW.VersionControl
 
         public string Description { get; set; }
 
-
         public IEnumerable<string> BinaryFiles
         {
             get => _binarySources.Keys;

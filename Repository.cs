@@ -9,7 +9,7 @@ namespace JHW.VersionControl
 {
     public static class Repository<T>
     {
-        public const string RootBranchName = "v.1";
+        public const string RootBranchName = "b.1";
         private const string _repoSubDirectory = ".shrub";
         private const string _branchSubDirectory = "branch";
         private const string _binarySourceSubDirectory = "bin";
@@ -36,16 +36,6 @@ namespace JHW.VersionControl
             get => Path.Combine(RepoPath, _branchSubDirectory);
         }
         
-        private static void Serialize(string branchName, Branch<T> branch)
-        {
-            IFormatter formatter = new BinaryFormatter();
-            string filename = Path.Combine(RepoBranchPath, branchName + ".bin");
-            Stream stream = new FileStream(filename, FileMode.Create, FileAccess.Write);
-
-            formatter.Serialize(stream, branch);
-            stream.Close();
-        }
-
         private static Branch<T> Deserialize(string filename)
         {
             IFormatter formatter = new BinaryFormatter();
@@ -57,7 +47,7 @@ namespace JHW.VersionControl
         {
             Stack<ChangeSet<T>> result = new Stack<ChangeSet<T>>();
 
-            while (_branchDict.ContainsKey(branchName))
+            while (branchName != null && _branchDict.ContainsKey(branchName))
             {
                 result.Push(_branchDict[branchName].TextChangeSet(filename));
                 branchName = ParentName(branchName);
@@ -66,6 +56,16 @@ namespace JHW.VersionControl
             return result;
         }
         #endregion
+
+        public static void Serialize(string branchName, Branch<T> branch)
+        {
+            IFormatter formatter = new BinaryFormatter();
+            string filename = Path.Combine(RepoBranchPath, branchName + ".bin");
+            Stream stream = new FileStream(filename, FileMode.Create, FileAccess.Write);
+
+            formatter.Serialize(stream, branch);
+            stream.Close();
+        }
 
         public static Branch<T> GetBranch(string name)
         {
@@ -77,6 +77,53 @@ namespace JHW.VersionControl
             return Directory.Exists(Path.Combine(workingDirectory, _repoSubDirectory));
         }
 
+        public static void PlantShrub(string workingDirectory)
+        {
+            _workingDirectory = workingDirectory;
+            
+            Directory.CreateDirectory(RepoBranchPath);
+            Directory.CreateDirectory(RepoBinPath);
+
+            Dictionary<string, string> binarySources = new Dictionary<string, string>();
+            Dictionary<string, ChangeSet<T>> textChangeSets = new Dictionary<string, ChangeSet<T>>();
+
+            foreach (var filename in Utility.GetFilesRecursively(_workingDirectory))
+            {
+                string relativeFilename = Path.GetRelativePath(_workingDirectory, filename);
+
+                if (Utility.IsBinary(filename))
+                {
+                    string sourceFilename = Path.Combine(RepoBinPath, _binaryFileNum + ".bin");
+                    File.Copy(filename, sourceFilename);
+                     
+                    binarySources.Add(relativeFilename, sourceFilename);
+                    _binaryFileNum++;
+                }
+                else
+                {
+                    IDocument<T> tdoc = (IDocument<T>)new LinkedCharsDoc(filename);
+                    
+                    textChangeSets.Add(relativeFilename, tdoc.ToChangeSet());
+                }
+            }
+
+            Branch<T> root = new Branch<T>(binarySources, textChangeSets, "trunk");
+
+            _branchDict.Add(RootBranchName, root);
+            Serialize(RootBranchName, root);
+        }
+
+        public static void LoadShrub(string workingDirectory)
+        {
+            _workingDirectory = workingDirectory;
+            _binaryFileNum = 1 + Directory.GetFiles(RepoBinPath).Length;
+            foreach (string filename in Directory.GetFiles(RepoBranchPath, "*.bin"))
+            {
+                var filenameOnly = Path.GetFileName(filename);
+                var branchName = filenameOnly.Substring(0, filenameOnly.Length - 4);
+                _branchDict.Add(branchName, Deserialize(filename));
+            }
+        }
 
         public static string NextAvailableChildName(string name)
         {
@@ -87,59 +134,6 @@ namespace JHW.VersionControl
                 childName = Utility.ChildName(name, ++childNum);
             }
             return childName;
-        }
-
-        public static void PlantShrub(string workingDirectory)
-        {
-            _workingDirectory = workingDirectory;
-            //Directory.CreateDirectory(RepoPath);
-            Directory.CreateDirectory(RepoBranchPath);
-            Directory.CreateDirectory(RepoBinPath);
-
-            Dictionary<string, string> binarySources = new Dictionary<string, string>();
-            Dictionary<string, ChangeSet<T>> textChangeSets = new Dictionary<string, ChangeSet<T>>();
-
-            foreach (var filename in Utility.GetFilesRecursively(_workingDirectory))
-            {
-                // get relative Filename
-                if (Utility.IsBinary(filename))
-                {
-                    /*string sourceFilename = Path.Combine(WorkingDirectory,
-                            ".shrub", Path.GetRelativePath(WorkingDirectory, filename));*/
-
-                    string sourceFilename = Path.Combine(RepoBinPath, _binaryFileNum + ".bin");
-                    File.Copy(filename, sourceFilename);
-                     
-                    binarySources.Add(filename, sourceFilename);
-                    _binaryFileNum++;
-                }
-                else
-                {
-                    IDocument<T> tdoc = (IDocument<T>)new LinkedCharsDoc(filename);
-                    
-                    textChangeSets.Add(filename, tdoc.ToChangeSet());
-                }
-            }
-
-            Branch<T> root = new Branch<T>(binarySources, textChangeSets, "trunk");
-
-            _branchDict.Add(RootBranchName, root);
-            Serialize(RootBranchName, root);
-
-        }
-
-
-        public static void Open(string workingDirectory)
-        {
-            _workingDirectory = workingDirectory;
-
-            foreach (string filename in Directory.GetFiles(RepoPath, "*.br"))
-            {
-                string filenameOnly = Path.GetFileName(filename);
-                _branchDict.Add(filenameOnly.Substring(0, filename.Length - 3),
-                    Deserialize(filename));
-            }
-
         }
 
         public static string ParentName(string name)
@@ -165,27 +159,42 @@ namespace JHW.VersionControl
             return tokens.Prefix + tokens.LastToken + (tokens.LastNumber - 1);
         }
 
-                
-        // A restoration of the working directory
-        // to a previous branch.
-        public static void Inspect(string branchName)
+        public static void ClearWorkingDirectory()
         {
-            Directory.Delete(_workingDirectory, true);
-            
-            Branch<T> branch = _branchDict[branchName];
-            foreach (string filename in branch.TextFiles)
+            foreach (string path in Directory.GetDirectories(_workingDirectory))
             {
-                IDocument<T> doc = (IDocument<T>) new LinkedCharsDoc();
+                if (Path.GetRelativePath(_workingDirectory, path) != ".shrub")
+                {
+                    Directory.Delete(path, true);
+                }
+            }
+            foreach (string filename in Directory.GetFiles(_workingDirectory))
+            {
+                File.Delete(filename);
+            }
+        }
+
+        // The restoration of the working directory
+        // of a file on a branch.
+        public static void Checkout(string branchName, string filename)
+        {
+            Branch<T> branch = _branchDict[branchName];
+
+            if (branch.HasTextChangeSet(filename))
+            {
+                IDocument<T> doc = (IDocument<T>)new LinkedCharsDoc();
                 var stack = StackOfChangeSets(branchName, filename);
                 while (stack.Count > 0)
                 {
                     doc.Apply(stack.Pop());
                 }
-                doc.Save(filename);
+
+                doc.Save(Path.Combine(_workingDirectory, filename));
             }
-            foreach (string filename in branch.BinaryFiles)
+            else if (branch.HasBinarySource(filename))
             {
-                File.Copy(branch.BinarySource(filename), filename);
+                File.Copy(branch.BinarySource(filename),
+                    Path.Combine(_workingDirectory, filename));
             }
         }
 
@@ -208,6 +217,9 @@ namespace JHW.VersionControl
             
             return result;
         }
+
+
+
 
         //todo public static void Grow() {}
         public static void Grow(string parentName, string description)

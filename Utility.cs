@@ -58,6 +58,13 @@ namespace JHW.VersionControl
             return result;
         }
 
+        /*public static string GetRelativeFilename(string path, string filename)
+        {
+            string fileDir = Path.GetDirectoryName(filename);
+            string relPath = Path.GetRelativePath(path, fileDir);
+            return Path.Combine(relPath, Path.GetFileName(filename));
+        }*/
+
         // The source code was taken from "bytedev" on Stack Overflow.
         public static bool IsBinary(string filePath, int requiredConsecutiveNul = 1)
         {

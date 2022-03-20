@@ -20,6 +20,7 @@ namespace JHW.VersionControl
         
         public override void Save(string filename)
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(filename));
             StreamWriter sw = new StreamWriter(filename);
             foreach (char c in _linkedList)
             {

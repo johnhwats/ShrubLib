@@ -18,11 +18,11 @@ namespace JHW.VersionControl
         public string Description { get; set; }
 
 
-        public IEnumerable<string> BinaryFiles
+        public IEnumerable<string> BinaryRelativeFilenames
         {
             get => _binarySources.Keys;
         }
-        public IEnumerable<string> TextFiles
+        public IEnumerable<string> TextRelativeFilenames
         {
             get => _textChangeSets.Keys;
         }
@@ -52,24 +52,24 @@ namespace JHW.VersionControl
             stream.Close();
         }
 
-        public bool HasBinarySource(string filename)
+        public bool HasBinarySource(string relativeFilename)
         {
-            return _binarySources.ContainsKey(filename);
+            return _binarySources.ContainsKey(relativeFilename);
         }
 
-        public string BinarySource(string filename)
+        public string BinarySource(string relativeFilename)
         {
-            return _binarySources[filename];
+            return _binarySources[relativeFilename];
         }
 
-        public bool HasTextChangeSet(string filename)
+        public bool HasTextChangeSet(string relativeFilename)
         {
-            return _textChangeSets.ContainsKey(filename);
+            return _textChangeSets.ContainsKey(relativeFilename);
         }
 
-        public ChangeSet<T> TextChangeSet(string filename)
+        public ChangeSet<T> TextChangeSet(string relativeFilename)
         {
-            return _textChangeSets[filename];
+            return _textChangeSets[relativeFilename];
         }
 
     }

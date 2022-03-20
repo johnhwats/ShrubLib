@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 using System.IO;
 
 namespace JHW.VersionControl
@@ -33,11 +31,13 @@ namespace JHW.VersionControl
             get => Path.Combine(ShrubPath, _branchSubDir);
         }
 
+
         private static Stack<ChangeSet<T>> StackOfChangeSets(string branchName, string filename)
         {
             Stack<ChangeSet<T>> result = new Stack<ChangeSet<T>>();
 
-            while (_branchDict.ContainsKey(branchName))
+            while (_branchDict.ContainsKey(branchName) &&
+                _branchDict[branchName].HasTextChangeSet(filename))
             {
                 result.Push(_branchDict[branchName].TextChangeSet(filename));
                 branchName = Utility.ParentName(branchName);
@@ -45,8 +45,34 @@ namespace JHW.VersionControl
             
             return result;
         }
+
+        private static string NextAvailableChildName(string parentName)
+        {
+            int childNum = 1;
+            string childName = Utility.ChildName(parentName, childNum);
+            while (_branchDict.ContainsKey(childName))
+            {
+                childName = Utility.ChildName(parentName, ++childNum);
+            }
+            return childName;
+        }
+
+        private static IDocument<T> RestoreDocument(string branchName, string relativeFilename)
+        {
+            IDocument<T> doc = (IDocument<T>)new LinkedCharsDoc();
+
+            var stack = StackOfChangeSets(branchName, relativeFilename);
+            while (stack.Count > 0)
+            {
+                doc.Apply(stack.Pop());
+            }
+
+            return doc;
+        }
+
         
-        
+
+
 
         public static Branch<T> GetBranch(string name)
         {
@@ -56,41 +82,6 @@ namespace JHW.VersionControl
         public static bool ExistsShrub(string path)
         {
             return Directory.Exists(Path.Combine(path, _shrubSubDir));
-        }
-
-        public static void PlantShrub(string path)
-        {
-            _workingDirectory = path;
-            
-            Directory.CreateDirectory(ShrubBranchPath);
-            Directory.CreateDirectory(ShrubBinPath);
-
-            Dictionary<string, string> binarySources = new Dictionary<string, string>();
-            Dictionary<string, ChangeSet<T>> textChangeSets = new Dictionary<string, ChangeSet<T>>();
-
-            foreach (var filename in Utility.GetFilesRecursively(_workingDirectory))
-            {
-                string relativeFilename = Path.GetRelativePath(_workingDirectory, filename);
-
-                if (Utility.IsBinary(filename))
-                {
-                    string sourceFilename = Path.Combine(ShrubBinPath, _binaryFileNum + ".bin");
-                    File.Copy(filename, sourceFilename);
-                     
-                    binarySources.Add(relativeFilename, sourceFilename);
-                    _binaryFileNum++;
-                }
-                else
-                {
-                    IDocument<T> tdoc = (IDocument<T>)new LinkedCharsDoc(filename);
-                    
-                    textChangeSets.Add(relativeFilename, tdoc.ToChangeSet());
-                }
-            }
-
-            Branch<T> root = new Branch<T>(binarySources, textChangeSets, "trunk");
-            root.Serialize(Path.Combine(ShrubBranchPath, RootBranchName + ".bin"));
-            _branchDict.Add(RootBranchName, root);
         }
 
         public static void LoadShrub(string path)
@@ -120,27 +111,24 @@ namespace JHW.VersionControl
             }
         }
 
-        // The restoration of the working directory
-        // of a file on a branch.
-        public static void Checkout(string branchName, string filename)
+        public static void Checkout(string branchName, HashSet<string> filenames)
         {
-            Branch<T> branch = _branchDict[branchName];
-
-            if (branch.HasTextChangeSet(filename))
+            var branch = GetBranch(branchName);
+            foreach (var fn in branch.TextRelativeFilenames)
             {
-                IDocument<T> doc = (IDocument<T>)new LinkedCharsDoc();
-                var stack = StackOfChangeSets(branchName, filename);
-                while (stack.Count > 0)
+                if (filenames.Contains(fn))
                 {
-                    doc.Apply(stack.Pop());
+                    RestoreDocument(branchName, fn).Save(
+                        Path.Combine(_workingDirectory, fn));
                 }
-
-                doc.Save(Path.Combine(_workingDirectory, filename));
             }
-            else if (branch.HasBinarySource(filename))
+            foreach (var fn in branch.BinaryRelativeFilenames)
             {
-                File.Copy(branch.BinarySource(filename),
-                    Path.Combine(_workingDirectory, filename));
+                if (filenames.Contains(fn))
+                {
+                    File.Copy(branch.BinarySource(fn),
+                        Path.Combine(_workingDirectory, fn));
+                }
             }
         }
 
@@ -164,47 +152,77 @@ namespace JHW.VersionControl
             return result;
         }
 
-        public static string NextAvailableChildName(string parentName)
+        public static void PlantShrub(string path)
         {
-            int childNum = 1;
-            string childName = Utility.ChildName(parentName, childNum);
-            while (_branchDict.ContainsKey(childName))
-            {
-                childName = Utility.ChildName(parentName, ++childNum);
-            }
-            return childName;
+            _workingDirectory = path;
+            Directory.CreateDirectory(ShrubBranchPath);
+            Directory.CreateDirectory(ShrubBinPath);
+            SproutBranch(null, "trunk");
         }
 
-        //todo public static void Grow() {}
-        public static void Grow(string parentName, string description)
+        public static void SproutBranch(string parentName, string description = null)
         {
             Dictionary<string, string> binarySources = new Dictionary<string, string>();
             Dictionary<string, ChangeSet<T>> textChangeSets = new Dictionary<string, ChangeSet<T>>();
 
-            //foreach file in the working directory
-            //if file is binary or not
-            foreach(var filename in Utility.GetFilesRecursively(_workingDirectory))
+            foreach (var filename in Utility.GetFilesRecursively(_workingDirectory))
             {
+                string relativeFilename = Path.GetRelativePath(_workingDirectory, filename);
+
                 if (Utility.IsBinary(filename))
                 {
-                    
+                    if (parentName != null &&
+                        _branchDict.ContainsKey(parentName) &&
+                        _branchDict[parentName].HasBinarySource(relativeFilename))
+                    {
+                        string parentSourceFilename =
+                            _branchDict[parentName].BinarySource(relativeFilename);
+                        FileInfo parentSourceInfo = new FileInfo(parentSourceFilename);
+
+                        FileInfo fileInfo = new FileInfo(filename);
+
+                        if (fileInfo.LastWriteTimeUtc == parentSourceInfo.LastWriteTimeUtc &&
+                            fileInfo.Length == parentSourceInfo.Length)
+                        {
+                            binarySources.Add(relativeFilename, parentSourceFilename);
+                        }
+                    }
+
+                    if (!binarySources.ContainsKey(relativeFilename))
+                    {
+                        string sourceFilename = Path.Combine(ShrubBinPath, _binaryFileNum + ".bin");
+                        _binaryFileNum++;
+                        File.Copy(filename, sourceFilename);
+                        binarySources.Add(relativeFilename, sourceFilename);
+                    }
                 }
                 else
                 {
-                    //check if the parent has a changeset
-                    if (_branchDict[parentName].HasTextChangeSet(filename))
+                    if (parentName != null &&
+                        _branchDict.ContainsKey(parentName) &&
+                        _branchDict[parentName].HasTextChangeSet(relativeFilename))
                     {
+                        IDocument<T> restoration = RestoreDocument(parentName, relativeFilename);
 
+                        //todo create a change set through diffing
+                        //and add to textChangeSet
                     }
-                    else
+
+                    if (!textChangeSets.ContainsKey(relativeFilename))
                     {
-                        IDocument<T> tdoc = (IDocument<T>) new LinkedCharsDoc(filename);
-                        textChangeSets.Add(filename, tdoc.ToChangeSet());
+                        IDocument<T> tdoc = (IDocument<T>)new LinkedCharsDoc(filename);
+                        textChangeSets.Add(relativeFilename, tdoc.ToChangeSet());
                     }
                 }
             }
-
-            Branch<T> branch = new Branch<T>(binarySources, textChangeSets, description);
+            var b = new Branch<T>(binarySources, textChangeSets, description);
+            string bName = RootBranchName;
+            if (parentName != null)
+            {
+                bName = NextAvailableChildName(parentName);
+            }
+            _branchDict.Add(bName, b);
+            b.Serialize(Path.Combine(ShrubBranchPath, bName + ".bin"));
         }
     }
 }

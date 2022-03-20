@@ -46,6 +46,24 @@ namespace JHW.VersionControl
             }
         }
 
+        public static string ParentName(string name)
+        {
+            var tokens = Utility.Split(name);
+
+            if (tokens.LastToken == '.' &&
+                tokens.LastNumber == 1)
+            {
+                return tokens.Prefix;
+            }
+
+            if (tokens.LastToken == '-')
+            {
+                tokens = Utility.Split(tokens.Prefix);
+            }
+
+            return tokens.Prefix + tokens.LastToken + (tokens.LastNumber - 1);
+        }
+
         public static List<string> GetFilesRecursively(string path)
         {
             List<string> result = new List<string>();
@@ -57,13 +75,6 @@ namespace JHW.VersionControl
             }
             return result;
         }
-
-        /*public static string GetRelativeFilename(string path, string filename)
-        {
-            string fileDir = Path.GetDirectoryName(filename);
-            string relPath = Path.GetRelativePath(path, fileDir);
-            return Path.Combine(relPath, Path.GetFileName(filename));
-        }*/
 
         // The source code was taken from "bytedev" on Stack Overflow.
         public static bool IsBinary(string filePath, int requiredConsecutiveNul = 1)
@@ -93,9 +104,11 @@ namespace JHW.VersionControl
                     }
                 }
             }
-
             return false;
         }
+
+        //todo backtracking from longest common subsequence via wikipedia
+
 
         //"AGBAT" and "GAB"
         public static int[,] LCSTableString(string a, string b)

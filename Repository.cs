@@ -2,87 +2,68 @@
 using System.Collections.Generic;
 using System.Text;
 using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Runtime.Serialization;
 
 namespace JHW.VersionControl
 {
     public static class Repository<T>
     {
         public const string RootBranchName = "b.1";
-        private const string _repoSubDirectory = ".shrub";
-        private const string _branchSubDirectory = "branch";
-        private const string _binarySourceSubDirectory = "bin";
+        private const string _shrubSubDir = ".shrub";
+        private const string _branchSubDir = "branch";
+        private const string _binarySourceSubDir = "bin";
 
         private static readonly Dictionary<string, Branch<T>> _branchDict = 
             new Dictionary<string, Branch<T>>();
 
-        private static string _workingDirectory;
+        private static string _workingDirectory = null;
         private static int _binaryFileNum = 1;
 
-        #region private methods
-        private static string RepoPath
+        private static string ShrubPath
         {
-            get => Path.Combine(_workingDirectory, _repoSubDirectory);
+            get => Path.Combine(_workingDirectory, _shrubSubDir);
         }
 
-        private static string RepoBinPath
+        private static string ShrubBinPath
         {
-            get => Path.Combine(RepoPath, _binarySourceSubDirectory);
+            get => Path.Combine(ShrubPath, _binarySourceSubDir);
         }
 
-        private static string RepoBranchPath
+        public static string ShrubBranchPath
         {
-            get => Path.Combine(RepoPath, _branchSubDirectory);
-        }
-        
-        private static Branch<T> Deserialize(string filename)
-        {
-            IFormatter formatter = new BinaryFormatter();
-            using Stream stream = new FileStream(filename, FileMode.Open);
-            return (Branch<T>)formatter.Deserialize(stream);
+            get => Path.Combine(ShrubPath, _branchSubDir);
         }
 
         private static Stack<ChangeSet<T>> StackOfChangeSets(string branchName, string filename)
         {
             Stack<ChangeSet<T>> result = new Stack<ChangeSet<T>>();
 
-            while (branchName != null && _branchDict.ContainsKey(branchName))
+            while (_branchDict.ContainsKey(branchName))
             {
                 result.Push(_branchDict[branchName].TextChangeSet(filename));
-                branchName = ParentName(branchName);
-            }
-
+                branchName = Utility.ParentName(branchName);
+            } 
+            
             return result;
         }
-        #endregion
-
-        public static void Serialize(string branchName, Branch<T> branch)
-        {
-            IFormatter formatter = new BinaryFormatter();
-            string filename = Path.Combine(RepoBranchPath, branchName + ".bin");
-            Stream stream = new FileStream(filename, FileMode.Create, FileAccess.Write);
-
-            formatter.Serialize(stream, branch);
-            stream.Close();
-        }
+        
+        
 
         public static Branch<T> GetBranch(string name)
         {
             return _branchDict[name];
         }
 
-        public static bool ExistsRepoSubDirectory(string workingDirectory)
+        public static bool ExistsShrub(string path)
         {
-            return Directory.Exists(Path.Combine(workingDirectory, _repoSubDirectory));
+            return Directory.Exists(Path.Combine(path, _shrubSubDir));
         }
 
-        public static void PlantShrub(string workingDirectory)
+        public static void PlantShrub(string path)
         {
-            _workingDirectory = workingDirectory;
+            _workingDirectory = path;
             
-            Directory.CreateDirectory(RepoBranchPath);
-            Directory.CreateDirectory(RepoBinPath);
+            Directory.CreateDirectory(ShrubBranchPath);
+            Directory.CreateDirectory(ShrubBinPath);
 
             Dictionary<string, string> binarySources = new Dictionary<string, string>();
             Dictionary<string, ChangeSet<T>> textChangeSets = new Dictionary<string, ChangeSet<T>>();
@@ -93,7 +74,7 @@ namespace JHW.VersionControl
 
                 if (Utility.IsBinary(filename))
                 {
-                    string sourceFilename = Path.Combine(RepoBinPath, _binaryFileNum + ".bin");
+                    string sourceFilename = Path.Combine(ShrubBinPath, _binaryFileNum + ".bin");
                     File.Copy(filename, sourceFilename);
                      
                     binarySources.Add(relativeFilename, sourceFilename);
@@ -108,55 +89,20 @@ namespace JHW.VersionControl
             }
 
             Branch<T> root = new Branch<T>(binarySources, textChangeSets, "trunk");
-
+            root.Serialize(Path.Combine(ShrubBranchPath, RootBranchName + ".bin"));
             _branchDict.Add(RootBranchName, root);
-            Serialize(RootBranchName, root);
         }
 
-        public static void LoadShrub(string workingDirectory)
+        public static void LoadShrub(string path)
         {
-            _workingDirectory = workingDirectory;
-            _binaryFileNum = 1 + Directory.GetFiles(RepoBinPath).Length;
-            foreach (string filename in Directory.GetFiles(RepoBranchPath, "*.bin"))
+            _workingDirectory = path;
+            _binaryFileNum = 1 + Directory.GetFiles(ShrubBinPath).Length;
+            foreach (string filename in Directory.GetFiles(ShrubBranchPath, "*.bin"))
             {
                 var filenameOnly = Path.GetFileName(filename);
                 var branchName = filenameOnly.Substring(0, filenameOnly.Length - 4);
-                _branchDict.Add(branchName, Deserialize(filename));
+                _branchDict.Add(branchName, Branch<T>.Deserialize(filename));
             }
-        }
-
-        public static string NextAvailableChildName(string name)
-        {
-            int childNum = 1;
-            string childName = Utility.ChildName(name, childNum);
-            while (_branchDict.ContainsKey(childName))
-            {
-                childName = Utility.ChildName(name, ++childNum);
-            }
-            return childName;
-        }
-
-        public static string ParentName(string name)
-        {
-            if (name == RootBranchName)
-            {
-                return null;
-            }
-
-            var tokens = Utility.Split(name);
-
-            if (tokens.LastToken == '.' &&
-                tokens.LastNumber == 1)
-            {
-                return tokens.Prefix;
-            }
-
-            if (tokens.LastToken == '-')
-            {
-                tokens = Utility.Split(tokens.Prefix);
-            }
-
-            return tokens.Prefix + tokens.LastToken + (tokens.LastNumber - 1);
         }
 
         public static void ClearWorkingDirectory()
@@ -218,8 +164,16 @@ namespace JHW.VersionControl
             return result;
         }
 
-
-
+        public static string NextAvailableChildName(string parentName)
+        {
+            int childNum = 1;
+            string childName = Utility.ChildName(parentName, childNum);
+            while (_branchDict.ContainsKey(childName))
+            {
+                childName = Utility.ChildName(parentName, ++childNum);
+            }
+            return childName;
+        }
 
         //todo public static void Grow() {}
         public static void Grow(string parentName, string description)
@@ -252,9 +206,5 @@ namespace JHW.VersionControl
 
             Branch<T> branch = new Branch<T>(binarySources, textChangeSets, description);
         }
-
-        
-
-        
     }
 }

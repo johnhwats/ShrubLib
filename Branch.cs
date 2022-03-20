@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Text;
 using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Runtime.Serialization;
 
 namespace JHW.VersionControl
 {
@@ -14,6 +16,7 @@ namespace JHW.VersionControl
             new Dictionary<string, ChangeSet<T>>();
 
         public string Description { get; set; }
+
 
         public IEnumerable<string> BinaryFiles
         {
@@ -31,6 +34,22 @@ namespace JHW.VersionControl
             _binarySources = binarySources;
             _textChangeSets = textChangeSets;
             Description = description;
+        }
+
+        public static Branch<T> Deserialize(string filename)
+        {
+            IFormatter formatter = new BinaryFormatter();
+            using Stream stream = new FileStream(filename, FileMode.Open);
+            return (Branch<T>)formatter.Deserialize(stream);
+        }
+
+        public void Serialize(string filename)
+        {
+            IFormatter formatter = new BinaryFormatter();
+            Stream stream = new FileStream(filename, FileMode.Create, FileAccess.Write);
+
+            formatter.Serialize(stream, this);
+            stream.Close();
         }
 
         public bool HasBinarySource(string filename)

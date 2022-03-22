@@ -10,31 +10,37 @@ namespace JHW.VersionControl
     {
         protected readonly LinkedList<T> _linkedList = new LinkedList<T>();
 
+        public int Count => _linkedList.Count;
+
+        public T this[int index]
+        {
+            get
+            {
+                LinkedListNode<T> node = _linkedList.First;
+                while (node != null)
+                {
+                    if (index > 0)
+                    {
+                        index--;
+                        node = node.Next;
+                    }
+                    else if (index == 0)
+                    {
+                        return node.Value;
+                    }
+                    else 
+                    {
+                        break;
+                    }
+                }
+                throw new IndexOutOfRangeException();
+            }
+        }
+
         public LinkedListDoc()
         {
         }
-        /*public LinkedListDoc(string filename) 
-        {
-            string text = File.ReadAllText(filename);
-            
-            int lineStart = 0;
-            for (int i = 0; i < text.Length; i++)
-            {
-                if (text[i] == '\r' || text[i] == '\n')
-                {
-                    if (i > lineStart)
-                    {
-                        _linkedList.AddLast(text.Substring(lineStart, i - lineStart));
-                    }
-                    lineStart = i + 1;
-                }
-            }
-
-            if (text.Length > lineStart)
-            {
-                _linkedList.AddLast(text.Substring(lineStart, text.Length - lineStart));
-            }
-        }*/
+        
 
         public abstract void Save(string filename);
         

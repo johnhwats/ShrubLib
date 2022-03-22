@@ -160,6 +160,12 @@ namespace JHW.VersionControl
             SproutBranch(null, "trunk");
         }
 
+
+        public static int AnalyzeBranch(string parentName)
+        {
+            return -1;
+        }
+
         public static void SproutBranch(string parentName, string description = null)
         {
             Dictionary<string, string> binarySources = new Dictionary<string, string>();

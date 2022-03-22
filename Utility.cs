@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
+using System.Linq;
 
 namespace JHW.VersionControl
 {
@@ -107,13 +107,70 @@ namespace JHW.VersionControl
             return false;
         }
 
-        //todo backtracking from longest common subsequence via wikipedia
+        // Backtrack from Longest Common Subsequence via Wikipedia.
+        public static List<int> RecursiveBacktrack<S,T>(int[,] c, S aStr, S bStr, int x, int y)
+            where S : IReadOnlyList<T>
+            where T : IEquatable<T>
+        {
+            if (x == 0 || y == 0)
+            {
+                return new List<int>();
+            }
+            else if (aStr[x - 1].Equals(bStr[y - 1]))
+            {
+                List<int> result = RecursiveBacktrack<S, T>(c, aStr, bStr, x - 1, y - 1);
+                result.Add(x - 1);
+                return result;
+            }
+            else if (c[x, y - 1] > c[x - 1, y])
+            {
+                return RecursiveBacktrack<S, T>(c, aStr, bStr, x, y - 1);
+            }
+            else
+            {
+                return RecursiveBacktrack<S, T>(c, aStr, bStr, x - 1, y);
+            }
+        }
 
+        //todo maybe return list instead of stack
+        //especially since the backtrack result
+        //will be used multiple times
+        public static Stack<int> BacktrackStack<S, T>(int[,] c, S aStr, S bStr, int x, int y)
+            where S : IReadOnlyList<T>
+            where T : IEquatable<T>
+        {
+            Stack<int> result = new Stack<int>();
+            while (x > 0 && y > 0)
+            {
+                if (aStr[x - 1].Equals(bStr[y - 1]))
+                {
+                    --y;
+                    result.Push(--x);
+                }
+                else if (c[x, y - 1] > c[x - 1, y])
+                {
+                    --y;
+                }
+                else
+                {
+                    --x;
+                }
+            }
+            return result;
+        }
+
+        //todo the insert list will be obtained by traversing the
+        //target document 
 
         //"AGBAT" and "GAB"
-        public static int[,] LCSTableString(string a, string b)
+        public static int[,] LCSTable(string a, string b)
         {
             return LCSTable<string, char>(a, b, a.Length, b.Length);
+        }
+
+        public static int[,] LCSTable(IDocument<char> a, IDocument<char> b)
+        {
+            return LCSTable<IDocument<char>, char>(a, b, a.Count, b.Count);
         }
 
         public static int[,] LCSTable<S, T>(S a, S b, int x, int y) 

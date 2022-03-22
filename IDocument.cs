@@ -4,7 +4,7 @@ using System.Text;
 
 namespace JHW.VersionControl
 {
-    public interface IDocument<T> : IEnumerable<T>
+    public interface IDocument<T> : IReadOnlyList<T>
     {
         void Apply(ChangeSet<T> changeSet);
         void Save(string filename);

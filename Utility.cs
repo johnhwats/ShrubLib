@@ -163,18 +163,19 @@ namespace JHW.VersionControl
         //target document 
 
         //"AGBAT" and "GAB"
-        public static int[,] LCSTable(string a, string b)
+        public static int[,] LCSTable(char[] a, char[] b)
         {
-            return LCSTable<string, char>(a, b, a.Length, b.Length);
+            return LCSTable<char[], char>(a, b, a.Length, b.Length);
         }
 
-        public static int[,] LCSTable(IDocument<char> a, IDocument<char> b)
+        public static int[,] LCSTable<T>(IDocument<T> a, IDocument<T> b)
+            where T : IEquatable<T>
         {
-            return LCSTable<IDocument<char>, char>(a, b, a.Count, b.Count);
+            return LCSTable<IDocument<T>, T>(a, b, a.Count, b.Count);
         }
 
         public static int[,] LCSTable<S, T>(S a, S b, int x, int y) 
-            where S : IEnumerable<T>
+            where S : IReadOnlyList<T>
             where T : IEquatable<T>
         {
             int[,] c = new int[x + 1, y + 1];

@@ -6,8 +6,7 @@ namespace JHW.VersionControl
 {
     public interface IDocument<T> : IReadOnlyList<T>
     {
-        void Apply(ChangeSet<T> changeSet);
-        void Save(string filename);
-        ChangeSet<T> ToChangeSet();
+        void Save(bool byLine, string filename);
+        ChangeSet<T> GetChangeSet(IDocument<T> source);
     }
 }

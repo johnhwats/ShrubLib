@@ -6,16 +6,23 @@ namespace JHW.VersionControl
     public static class Repository<T>
     {
         public const string RootBranchName = "b.1";
+        
+        //delete
         private const string _shrubSubDir = ".shrub";
+        
         private const string _branchSubDir = "branch";
         private const string _binarySourceSubDir = "bin";
 
         private static readonly Dictionary<string, Branch<T>> _branchDict = 
             new Dictionary<string, Branch<T>>();
 
+        //delete
         private static string _workingDirectory = null;
+        
+        private static string _repoPath;
         private static int _binaryFileNum = 1;
 
+        //delete
         private static string ShrubPath
         {
             get => Path.Combine(_workingDirectory, _shrubSubDir);
@@ -59,20 +66,18 @@ namespace JHW.VersionControl
 
         private static IDocument<T> RestoreDocument(string branchName, string relativeFilename)
         {
-            IDocument<T> doc = (IDocument<T>)new LinkedCharsDoc();
-
+            Document<T> doc = new Document<T>();
+            
             var stack = StackOfChangeSets(branchName, relativeFilename);
             while (stack.Count > 0)
             {
-                doc.Apply(stack.Pop());
+                doc = stack.Pop().Transition(doc);
             }
 
             return doc;
         }
 
         
-
-
 
         public static Branch<T> GetBranch(string name)
         {
@@ -111,15 +116,14 @@ namespace JHW.VersionControl
             }
         }
 
-        public static void Checkout(string branchName, HashSet<string> filenames)
+        public static void Checkout(bool byLine, string branchName, HashSet<string> filenames)
         {
             var branch = GetBranch(branchName);
             foreach (var fn in branch.TextRelativeFilenames)
             {
                 if (filenames.Contains(fn))
                 {
-                    RestoreDocument(branchName, fn).Save(
-                        Path.Combine(_workingDirectory, fn));
+                    RestoreDocument(branchName, fn).Save(byLine, Path.Combine(_workingDirectory, fn));
                 }
             }
             foreach (var fn in branch.BinaryRelativeFilenames)
@@ -152,12 +156,12 @@ namespace JHW.VersionControl
             return result;
         }
 
-        public static void PlantShrub(string path)
+        public static void PlantShrub(bool byLine, string path)
         {
             _workingDirectory = path;
             Directory.CreateDirectory(ShrubBranchPath);
             Directory.CreateDirectory(ShrubBinPath);
-            SproutBranch(null, "trunk");
+            SproutBranch(byLine, null, "trunk");
         }
 
 
@@ -166,7 +170,7 @@ namespace JHW.VersionControl
             return -1;
         }
 
-        public static void SproutBranch(string parentName, string description = null)
+        public static void SproutBranch(bool byLine, string parentName, string description = null)
         {
             Dictionary<string, string> binarySources = new Dictionary<string, string>();
             Dictionary<string, ChangeSet<T>> textChangeSets = new Dictionary<string, ChangeSet<T>>();
@@ -216,8 +220,17 @@ namespace JHW.VersionControl
 
                     if (!textChangeSets.ContainsKey(relativeFilename))
                     {
-                        IDocument<T> tdoc = (IDocument<T>)new LinkedCharsDoc(filename);
-                        textChangeSets.Add(relativeFilename, tdoc.ToChangeSet());
+                        IDocument<T> tdoc;
+                        if (byLine)
+                        {
+                            tdoc = (IDocument<T>) new DocumentOfLines(filename);
+                        }
+                        else
+                        {
+                            tdoc = (IDocument<T>)new DocumentOfChars(filename);
+                        }
+
+                        textChangeSets.Add(relativeFilename, tdoc.GetChangeSet(tdoc));
                     }
                 }
             }

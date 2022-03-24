@@ -165,43 +165,37 @@ namespace JHW.VersionControl
         //"AGBAT" and "GAB"
         public static int[,] LCSTable(char[] a, char[] b)
         {
-            return LCSTable<char[], char>(a, b, a.Length, b.Length);
+            return LCSTable<char[], char>(a, b);
         }
 
         public static int[,] LCSTable<T>(IDocument<T> a, IDocument<T> b)
             where T : IEquatable<T>
         {
-            return LCSTable<IDocument<T>, T>(a, b, a.Count, b.Count);
+            return LCSTable<IDocument<T>, T>(a, b);
         }
 
-        public static int[,] LCSTable<S, T>(S a, S b, int x, int y) 
+        public static int[,] LCSTable<S, T>(S a, S b) 
             where S : IReadOnlyList<T>
             where T : IEquatable<T>
         {
-            int[,] c = new int[x + 1, y + 1];
+            int m = a.Count;
+            int n = b.Count;
+            int[,] c = new int[m + 1, n + 1];
 
-            c[0, 0] = 0;
-            int i = 0;
-            foreach (T t in a)
+            for (int i = 0; i <= m; i++)
             {
-                c[i++, 0] = 0;
+                c[i, 0] = 0;
             }
-            int j = 0;
-            foreach (T t in b)
+            for (int j = 0; j <= n; j++)
             {
-                c[0, j++] = 0;
+                c[0, j] = 0;
             }
 
-            i = 0;
-            j = 0;
-            foreach (T t1 in a)
+            for (int i = 1; i <= m; i++)
             {
-                i++;
-                foreach (T t2 in b)
+                for (int j = 1; j <= n; j++)
                 {
-                    j++;
-                    Console.WriteLine("[{0},{1}]", i, j);
-                    if (t1.Equals(t2))
+                    if (a[i - 1].Equals(b[j - 1]))
                     {
                         c[i, j] = c[i - 1, j - 1] + 1;
                     }
@@ -211,7 +205,6 @@ namespace JHW.VersionControl
                             c[i - 1, j]);
                     }
                 }
-                j = 0;
             }
             return c;
         }

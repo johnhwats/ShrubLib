@@ -3,39 +3,26 @@ using System.IO;
 
 namespace JHW.VersionControl
 {
-    public static class Repository<T>
+    public static class Repo<T>
     {
-        public const string RootBranchName = "b.1";
-        
-        //delete
-        private const string _shrubSubDir = ".shrub";
-        
+        public const string RootBranchName = "b.1";        
         private const string _branchSubDir = "branch";
         private const string _binarySourceSubDir = "bin";
 
         private static readonly Dictionary<string, Branch<T>> _branchDict = 
             new Dictionary<string, Branch<T>>();
-
-        //delete
-        private static string _workingDirectory = null;
         
         private static string _repoPath;
         private static int _binaryFileNum = 1;
 
-        //delete
-        private static string ShrubPath
-        {
-            get => Path.Combine(_workingDirectory, _shrubSubDir);
-        }
-
         private static string ShrubBinPath
         {
-            get => Path.Combine(ShrubPath, _binarySourceSubDir);
+            get => Path.Combine(_repoPath, _binarySourceSubDir);
         }
 
         public static string ShrubBranchPath
         {
-            get => Path.Combine(ShrubPath, _branchSubDir);
+            get => Path.Combine(_repoPath, _branchSubDir);
         }
 
 
@@ -78,20 +65,14 @@ namespace JHW.VersionControl
         }
 
         
-
         public static Branch<T> GetBranch(string name)
         {
             return _branchDict[name];
         }
 
-        public static bool ExistsShrub(string path)
+        public static void LoadShrub(string repoPath)
         {
-            return Directory.Exists(Path.Combine(path, _shrubSubDir));
-        }
-
-        public static void LoadShrub(string path)
-        {
-            _workingDirectory = path;
+            _repoPath = repoPath;
             _binaryFileNum = 1 + Directory.GetFiles(ShrubBinPath).Length;
             foreach (string filename in Directory.GetFiles(ShrubBranchPath, "*.bin"))
             {
@@ -101,29 +82,15 @@ namespace JHW.VersionControl
             }
         }
 
-        public static void ClearWorkingDirectory()
-        {
-            foreach (string path in Directory.GetDirectories(_workingDirectory))
-            {
-                if (Path.GetRelativePath(_workingDirectory, path) != ".shrub")
-                {
-                    Directory.Delete(path, true);
-                }
-            }
-            foreach (string filename in Directory.GetFiles(_workingDirectory))
-            {
-                File.Delete(filename);
-            }
-        }
-
-        public static void Checkout(bool byLine, string branchName, HashSet<string> filenames)
+        public static void Checkout(string workingDirectory, 
+            bool byLine, string branchName, HashSet<string> filenames)
         {
             var branch = GetBranch(branchName);
             foreach (var fn in branch.TextRelativeFilenames)
             {
                 if (filenames.Contains(fn))
                 {
-                    RestoreDocument(branchName, fn).Save(byLine, Path.Combine(_workingDirectory, fn));
+                    RestoreDocument(branchName, fn).Save(byLine, Path.Combine(workingDirectory, fn));
                 }
             }
             foreach (var fn in branch.BinaryRelativeFilenames)
@@ -131,7 +98,7 @@ namespace JHW.VersionControl
                 if (filenames.Contains(fn))
                 {
                     File.Copy(branch.BinarySource(fn),
-                        Path.Combine(_workingDirectory, fn));
+                        Path.Combine(workingDirectory, fn));
                 }
             }
         }
@@ -156,12 +123,12 @@ namespace JHW.VersionControl
             return result;
         }
 
-        public static void PlantShrub(bool byLine, string path)
+        public static void PlantShrub(string repoPath, string workingDirectory, bool byLine)
         {
-            _workingDirectory = path;
+            _repoPath = repoPath;
             Directory.CreateDirectory(ShrubBranchPath);
             Directory.CreateDirectory(ShrubBinPath);
-            SproutBranch(byLine, null, "trunk");
+            SproutBranch(workingDirectory, byLine, null, "trunk");
         }
 
 
@@ -170,14 +137,17 @@ namespace JHW.VersionControl
             return -1;
         }
 
-        public static void SproutBranch(bool byLine, string parentName, string description = null)
+        public static void SproutBranch(string workingDirectory, 
+            bool byLine, string parentName, string description = null)
         {
-            Dictionary<string, string> binarySources = new Dictionary<string, string>();
-            Dictionary<string, ChangeSet<T>> textChangeSets = new Dictionary<string, ChangeSet<T>>();
+            Dictionary<string, string> binarySources = 
+                new Dictionary<string, string>();
+            Dictionary<string, ChangeSet<T>> textChangeSets = 
+                new Dictionary<string, ChangeSet<T>>();
 
-            foreach (var filename in Utility.GetFilesRecursively(_workingDirectory))
+            foreach (var filename in Utility.GetFilesRecursively(workingDirectory))
             {
-                string relativeFilename = Path.GetRelativePath(_workingDirectory, filename);
+                string relativeFilename = Path.GetRelativePath(workingDirectory, filename);
 
                 if (Utility.IsBinary(filename))
                 {

@@ -76,6 +76,21 @@ namespace JHW.VersionControl
             return result;
         }
 
+        public static void Clear(string dir, string excludeSubDir)
+        {
+            foreach (string subPath in Directory.GetDirectories(dir))
+            {
+                if (!Path.Equals(subPath, excludeSubDir))
+                {
+                    Directory.Delete(subPath, true);
+                }
+            }
+            foreach (string filename in Directory.GetFiles(dir))
+            {
+                File.Delete(filename);
+            }
+        }
+
         // The source code was taken from "bytedev" on Stack Overflow.
         public static bool IsBinary(string filePath, int requiredConsecutiveNul = 1)
         {

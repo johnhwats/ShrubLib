@@ -11,7 +11,7 @@ the unknown, the nebulous, and the dark. In order to find a way or methodology w
 did not exist before. We are explorers cutting across jungle, moreso than a
 traditional engineer with a laid out plan, with a design, or even with an architecture.
 
-In order to explore, we need to be lightweight not physically with less gear, but we need
+In order to explore, we need to be lightweight but not physically with less gear, but we need
 to be lightweight mentally. The tools we use should be essential and lightweight as possible.
 
 In "shrub", branching is done automatically with each commit. At each commit, the parent

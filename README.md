@@ -17,6 +17,6 @@ to be lightweight mentally. The tools we use should be essential and lightweight
 In "shrub", branching is done automatically with each commit. At each commit, the parent
 branch does not need to be specified because the parent branch is found by "shrub"
 by locating the optimal parent branch in terms of space and speed considerations. Thus, 
-there is no need for the user to branch at all and when he commits, it's just the press 
+there is no need for the user to branch at all, and when he commits, it's just the press 
 of a button. What emerges is an development tree that is not created automatically, it holds in
 itself insights into the history of the development process by way of its shape.

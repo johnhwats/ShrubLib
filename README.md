@@ -19,7 +19,7 @@ In "shrub", branching is done automatically with each commit. At each commit, th
 branch does not need to be specified because the parent branch is found by "shrub"
 by locating the optimal parent branch in terms of space and speed considerations. Thus, 
 there is no need for the user to branch at all, and when he commits, it's just the press 
-of a button. What emerges is a development tree grows organically and holds in
+of a button. What emerges is a development tree that grows organically and holds in
 itself insights into the history of the development process by way of its shape.
 
 --
